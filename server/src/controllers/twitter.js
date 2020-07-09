@@ -138,6 +138,20 @@ route.get('/webhooks/s', mustBeLoggedIn, async (req, res) => {
   res.send({ webhooks })
 });
 
+route.get('/webhooks/d', mustBeLoggedIn, async (req, res) => {
+  const { user: cookieUser } = req;
+  const user = new User({ id: cookieUser.id });
+  await user.load();
+
+  logger.info('Loaded the user info...', typeof user.twitter);
+
+  const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+  await twitterUserOauth.load();
+
+  const webhooks = await twitterUserOauth.subscribeWebhook();
+  res.send({ webhooks })
+});
+
 route.get('/receive', async (req, res) => {
   const { crc_token, nonce } = req.query;
   const response_token = TwitterOauth.webhookCRCCheck(crc_token);

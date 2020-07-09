@@ -1,0 +1,19 @@
+{
+  "name": "twitter-desk",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "client": "yarn workspace ca-client start",
+    "server": "yarn workspace ca-server start-prod",
+    "server-dev": "yarn workspace ca-server start",
+    "start": "concurrently --kill-others-on-fail \"yarn server-dev\"  \"yarn client\"",
+    "build-client": "yarn workspace ca-client build"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "dependencies": {
+    "concurrently": "^5.1.0"
+  }
+}

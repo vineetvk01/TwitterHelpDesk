@@ -54,7 +54,7 @@ const GET_WEBHOOKS = {
 }
 
 const GET_SUBSCRIPTION = {
-  url: '/1.1/account_activity/all/Dev/subscriptions.json',
+  url: '/1.1/account_activity/all/subscriptions/count.json',
   method: 'get',
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
 }
