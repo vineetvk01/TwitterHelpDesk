@@ -30,8 +30,9 @@ app.use((req, res, next) => {
 
 app.use(authentication);
 
-app.use('/user', mustBeLoggedIn, userRoutes);
-app.use('/twitter', twitterRoutes );
+app.use('/api/user', userRoutes);
+app.use('/api/twitter', twitterRoutes );
+
 
 app.use(function (req, res, next) {
   res.status(404);

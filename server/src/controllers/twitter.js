@@ -5,17 +5,18 @@ import { attachTokenToResponse, mustBeLoggedIn } from '../middleware/authenticat
 import { User } from '../User/model';
 import { TwitterOauth } from '../Twitter/oauth';
 import { Timeline } from '../Twitter/model';
+import makeLogger from '../logger';
 
 const PUBLIC_URL = path.join(__dirname, '../../public');
-
+const logger = makeLogger('twitter.js');
 const route = express.Router();
 
-
-route.get('/oauth_token', async (req, res) => {
+route.get('/authenticationURL', async (req, res) => {
   try {
-    const identity = await TwitterOauth.makeOauthToken();
+    logger.info('Twitter\'s new oauth token is requested for Authentication');
+    const urlDetails = await TwitterOauth.makeOauthURL();
     res.status(200).send({
-      ...identity
+      ...urlDetails
     })
   } catch (e) {
     console.error(e);
@@ -23,90 +24,35 @@ route.get('/oauth_token', async (req, res) => {
   }
 })
 
-route.get('/timeline/sync/:days?', mustBeLoggedIn, async (req, res) => {
-  try {
-    const { user: cookieUser } = req;
-    const { days = 0 } = req.params;
-
-    const user = new User({ id: cookieUser.id });
-    await user.load();
-
-    const { linkedAccounts: { twitter: { screen_name, user_id, oauth_token, oauth_token_secret } } } = user;
-
-    const twitterOauth = new TwitterOauth(screen_name, user_id, oauth_token, oauth_token_secret);
-    const filteredTweets = await twitterOauth.fetchFilteredTweets({ days });
-    const timeline = new Timeline({ userId: user.id, tweets: filteredTweets });
-    timeline.save();
-
-    res.send({
-      success: true,
-      total_synced: timeline.tweets.length
-    });
-  } catch (e) {
-    console.error(e);
-    res.sendStatus(401)
-  }
-});
-
-route.get('/timeline', mustBeLoggedIn, async (req, res) => {
-  const { user, query } = req;
-  const { hashtags, location } = query;
-
-  if (hashtags) {
-    console.log(hashtags);
-    query.hashtags = hashtags.trim().split(',');
-  }
-
-  if (location) {
-    query.location = decodeURIComponent(location);
-  }
-
-  console.log('Page : ',query.page)
-  const timeline = new Timeline({ userId: user.id });
-  await timeline.load(query);
-  console.log('Page After: ',query.page)
-
-  res.status(200).send({
-    status: "success",
-    tweets: timeline.tweets,
-    page: query.page || 1,
-    total_count: timeline.total
-  })
-});
-
-route.get('/timeline/analysis', mustBeLoggedIn, async (req, res) => {
-  const { user } = req;
-
-  const timeline = new Timeline({ userId: user.id });
-  const user_shared_most_links = await timeline.calculateUserSharedMostLinks();
-  const top_domain_shared = await timeline.calculateMostDomainShared();
-
-  res.status(200).send({
-    status: "success",
-    user_shared_most_links,
-    top_domain_shared
-  })
-});
-
 route.get('/oauth_callback', async (req, res) => {
   try {
-    const { query: identity } = req;
+    let { query: identity } = req;
     if (identity && identity.denied) {
-      console.log('Twitter login was denied by the user');
+      logger.info('Twitter Authentication denied by the user...');
       res.sendFile(PUBLIC_URL + '/denied.html');
       return;
     }
 
-    const twitterUser = await TwitterOauth.makeFromIdentifier(identity);
+    logger.info('Twitter is Authenticated by the user...');
 
-    if (!twitterUser) {
+    const twitterUserOauth = await TwitterOauth.makeFromIdentifier(identity);
+
+    logger.info('TwitterOauth is generated for the user...');
+    if (!twitterUserOauth) {
       throw new Error('Unable to fetch user from Twitter');
     }
-    console.log('User is fetched from the account')
-    const user = await User.makeFromTwitter(twitterUser);
+
+    await twitterUserOauth.fetchAccountInfo();
+    logger.info('User Details are fetched from twitter oauth');
+
+    await twitterUserOauth.save();
+    logger.info('Twitter handle is persisted.. id : ', twitterUserOauth.id);
+    logger.info('Going to create user from twitter oauth...');
+
+    const user = await User.makeFromTwitter(twitterUserOauth);
     console.log('User To be Signed', user.toSession());
     res = attachTokenToResponse(res, user.toSession());
-    
+
     if (identity && identity.oauth_token && identity.oauth_verifier) {
       res.sendFile(PUBLIC_URL + '/approved.html');
       return;
@@ -120,6 +66,89 @@ route.get('/oauth_callback', async (req, res) => {
     });
   }
 });
+
+route.get('/webhooks', mustBeLoggedIn, async (req, res) => {
+  try {
+    const { user: cookieUser } = req;
+    const user = new User({ id: cookieUser.id });
+    await user.load();
+
+    logger.info('Loaded the user info...', typeof user.twitter);
+
+    const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+    await twitterUserOauth.load();
+    const webhooks = await twitterUserOauth.getWebhooks();
+    res.send({ webhooks })
+  } catch (e) {
+    logger.error(e.message);
+    res.status(500).send({});
+    throw new Error(e);
+  }
+})
+
+route.get('/sub', mustBeLoggedIn, async (req, res) => {
+  try {
+    const { user: cookieUser } = req;
+    const user = new User({ id: cookieUser.id });
+    await user.load();
+
+    logger.info('Loaded the user info...', typeof user.twitter);
+
+    const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+    await twitterUserOauth.load();
+    const subs = await twitterUserOauth.getSubscription();
+    res.send({ subs })
+  } catch (e) {
+    logger.error(e.message);
+    res.status(500).send({});
+    throw new Error(e);
+  }
+})
+
+route.get('/sub/new', mustBeLoggedIn, async (req, res) => {
+  try {
+    const { user: cookieUser } = req;
+    const user = new User({ id: cookieUser.id });
+    await user.load();
+
+    logger.info('Loaded the user info...', typeof user.twitter);
+
+    const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+    await twitterUserOauth.load();
+    const subs = await twitterUserOauth.postSubscription();
+    res.send({ subs })
+  } catch (e) {
+    logger.error(e.message);
+    res.status(500).send({});
+    throw new Error(e);
+  }
+})
+
+route.get('/webhooks/s', mustBeLoggedIn, async (req, res) => {
+  const { user: cookieUser } = req;
+  const user = new User({ id: cookieUser.id });
+  await user.load();
+
+  logger.info('Loaded the user info...', typeof user.twitter);
+
+  const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+  await twitterUserOauth.load();
+
+  const webhooks = await twitterUserOauth.subscribeWebhook();
+  res.send({ webhooks })
+});
+
+route.get('/receive', async (req, res) => {
+  const { crc_token, nonce } = req.query;
+  const response_token = TwitterOauth.webhookCRCCheck(crc_token);
+  res.send({response_token})
+})
+
+route.post('/receive', async (req, res) => {
+  logger.info('Receiving')
+  logger.info(req.body);
+  res.send({})
+})
 
 
 export default route;

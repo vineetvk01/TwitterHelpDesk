@@ -1,9 +1,62 @@
-import { makeDb } from '../db';
+import { makeDb, makeObjectId } from '../db';
 
 export const saveNewOauthToken = async ({ oauth_token, oauth_token_secret, oauth_callback_confirmed }) => {
   const db = await makeDb();
   const done = await db.collection('twitter').insertOne({ oauth_token, oauth_token_secret, oauth_callback_confirmed });
   return done.insertedId;
+}
+
+export const twitterUserExists = async (query) => {
+  const db = await makeDb();
+  const exists = await db.collection('twitter').findOne(query);
+  return exists ? true : false;
+}
+
+export const updateOauthToken = async (
+  query,
+  { oauth_token,
+    user_oauth_token,
+    user_oauth_token_secret,
+    screen_name,
+    user_id,
+    twitter_id,
+    name,
+    location,
+    description,
+    profile_image_url,
+    email,
+  }) => {
+  const db = await makeDb();
+  const update = {
+    "$set": {
+      user_oauth_token,
+      user_oauth_token_secret,
+      screen_name,
+      user_id,
+      twitter_id,
+      name,
+      location,
+      description,
+      profile_image_url,
+      email,
+    }
+  }
+  const options = { returnNewDocument: true };
+  const data = await db.collection('twitter').findOneAndUpdate(query, update, options);
+  return data.value._id;
+}
+
+export const deleteOauthToken = async (query) => {
+  const db = await makeDb();
+  return db.collection('twitter').deleteOne(query);
+}
+
+export const fetchTwitterOauthById = async (id) => {
+  id = typeof id === 'string' ? makeObjectId(id) : id;
+  const db = await makeDb();
+  const query = { _id : id };
+  const data = await db.collection('twitter').findOne(query);
+  return data;
 }
 
 export const createOrUpdateTweets = async (tweets = []) => {
@@ -42,7 +95,7 @@ export const fetchTweetsByUserId = async (userId, { page = 1, count = 50, locati
   const skip = (page - 1) * count;
   console.log(skip, count);
 
-  const data = await db.collection('timeline').find(query).sort({_id: -1}).skip(skip).limit(parseInt(count));
+  const data = await db.collection('timeline').find(query).sort({ _id: -1 }).skip(skip).limit(parseInt(count));
   const tweets = await data.toArray();
 
   const total = await db.collection('timeline').find(query).count();
@@ -57,14 +110,15 @@ export const groupByUserName = async (count = 5) => {
   const data = await db.collection('timeline').aggregate([
     { $group: { _id: "$name", count: { $sum: 1 } } },
     { $sort: { count: -1 } },
-    { $project: {  _id: 0, name: "$_id", count: 1 }
-}
+    {
+      $project: { _id: 0, name: "$_id", count: 1 }
+    }
   ]).limit(count)
   return data.toArray();
 }
 
-export const fetchAllURLs = async( count = 5 ) => {
+export const fetchAllURLs = async (count = 5) => {
   const db = await makeDb();
-  const data = await db.collection('timeline').find({},{ fields: { _id: 0, urls: 1}});
+  const data = await db.collection('timeline').find({}, { fields: { _id: 0, urls: 1 } });
   return data.toArray();
 }

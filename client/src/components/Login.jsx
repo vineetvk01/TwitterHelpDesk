@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { AiOutlineTwitter } from 'react-icons/ai';
 import { FaUserCog } from 'react-icons/fa';
+import { buildTwitterOauthURL, currentUser } from '../services';
 
 const Background = styled.div`
   width: 100%;
@@ -78,18 +79,35 @@ const LoginButton = styled.button`
 
 export const Login = () => {
 
+  const [loggedIn, setLoggedIn] = useState(false);
+
+  const handleAuthentication = async (e) => {
+    const authenticationURL = await buildTwitterOauthURL();
+    const opened = window.open(authenticationURL, "Ratting", "width=550,height=670,left=150,top=200,toolbar=0,status=0,");
+    let timer = setInterval(function () {
+      if (opened.closed) {
+        clearInterval(timer);
+        currentUser().then((user) => {
+          if (Object.keys(user).length > 0) {
+            setLoggedIn(true);
+          }
+        });
+      }
+    }, 1000);
+  }
+
   return (
     <Background>
       <LoginBox>
         <img src={process.env.PUBLIC_URL + '/img/diamond.svg'} width='40' />
         <Title>HELP DESK</Title>
-        <TwitterButton outline='none'>
+        <TwitterButton outline='none' onClick={handleAuthentication}>
           <AiOutlineTwitter size='36' style={{ float: 'left', marginTop: 10 }} />
           <p style={{ float: 'left' }}> | Connect with Twitter</p>
         </TwitterButton>
         <br />
-        <UserCredentials placeholder="Agent Username" type="text"/>
-        <UserCredentials placeholder="Agent Password" type="password"/>
+        <UserCredentials placeholder="Agent Username" type="text" />
+        <UserCredentials placeholder="Agent Password" type="password" />
         <LoginButton><FaUserCog size='18' /> Login as Agent</LoginButton>
 
       </LoginBox>

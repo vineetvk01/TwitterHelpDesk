@@ -5,13 +5,13 @@ const instance = axios.create({
   withCredentials: true
 })
 
-const OAUTH_URL = '/twitter/oauth_token';
-const ME_URL = '/user/me';
+const OAUTH_URL = '/api/twitter/authenticationURL';
+const ME_URL = '/api/user/me';
 const ALL = '/all';
-const TIMELINE = '/twitter/timeline';
-const TIMELINE_SYNC = '/twitter/timeline/sync';
-const LOGOUT = '/user/logout';
-const ANALYSIS = '/twitter/timeline/analysis';
+const TIMELINE = '/api/twitter/timeline';
+const TIMELINE_SYNC = '/api/twitter/timeline/sync';
+const LOGOUT = '/api/user/logout';
+const ANALYSIS = '/api/twitter/timeline/analysis';
 
 export const buildTwitterOauthURL = async () => {
   const { data: { oauth_url } } = await instance.get(`${SERVER_URL}${OAUTH_URL}`);

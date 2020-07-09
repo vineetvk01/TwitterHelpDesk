@@ -1,26 +1,31 @@
-import { updateOrCreate, findUserById } from './db';
+import { updateOrCreate, findUserById, findUserByCredentials } from './db';
+import makeLogger from '../logger';
+
+const logger = makeLogger('user/model.js');
 
 export class User {
 
   id;
   email;
-  linkedAccounts;
+  password;
+  twitter;
 
-  constructor({ id, email, linkedAccounts }) {
+  constructor({ id, email, twitter }) {
     this.id = id;
     this.email = email;
-    this.linkedAccounts = linkedAccounts;
+    this.twitter = twitter;
   }
 
   save = async function(){
     const { id } = await updateOrCreate(this);
+    logger.info(' New User created with id: ', id);
     this.id = id;
   }
 
   load = async function(){
     const userdb = await findUserById(this.id);
     this.email = userdb.email;
-    this.linkedAccounts = userdb.linkedAccounts;
+    this.twitter = userdb.twitter;
   }
 
   toSession = function(){
@@ -35,16 +40,25 @@ export class User {
   }
 
   static makeFromTwitter = async function (twitterUser) {
-    await twitterUser.fetchAccountInfo();
     if (twitterUser.email == null) {
       throw new Error('Email is absent in the user info');
     }
-    //console.log(twitterUser);
-    const user = new User({ email: twitterUser.email, linkedAccounts: { twitter: twitterUser } });
+
+    const user = new User({ email: twitterUser.email, twitter: twitterUser.id });
     if (!user) {
       throw new Error('No user found with the authenticated token.')
     }
     await user.save();
+    logger.info('User is persisted...')
+    return user;
+  }
+
+  static loginAgent = async function({username, password}){
+    const {} = await findUserByCredentials({username, password});
+    if(!user){
+      throw new Error('No user found with the credentials')
+    }
+    const user = new User({ email: twitterUser.email, twitter: { twitter: twitterUser } });
     return user;
   }
 }

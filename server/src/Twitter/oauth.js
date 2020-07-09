@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { Timeline } from './model';
 import { hashHMACSHA1, base64String, objectFromString } from '../utils';
-import { saveNewOauthToken, updateOauthToken } from './db';
+import { saveNewOauthToken, updateOauthToken, twitterUserExists, deleteOauthToken, fetchTwitterOauthById } from './db';
 import btoa from 'btoa';
+import makeLogger from '../logger';
+import crypto from 'crypto';
+
+const logger = makeLogger('Oauth.js');
 
 
 const TWITTER_API_URL = 'https://api.twitter.com';
@@ -26,9 +30,38 @@ const ACCESS_TOKEN = {
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version', 'oauth_token']
 }
 
+const BEARER_TOKEN = {
+  url: '/oauth2/token',
+  method: 'post',
+}
+
 const HOME_TIMELINE = {
   url: '/1.1/statuses/home_timeline.json',
   method: 'get',
+  headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
+}
+
+const REGISTER_WEBHOOK = {
+  url: '/1.1/account_activity/all/Dev/webhooks.json',
+  method: 'post',
+  headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
+};
+
+const GET_WEBHOOKS = {
+  url: '/1.1/account_activity/all/webhooks.json',
+  method: 'get',
+  headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
+}
+
+const GET_SUBSCRIPTION = {
+  url: '/1.1/account_activity/all/Dev/subscriptions.json',
+  method: 'get',
+  headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
+}
+
+const POST_SUBSCRIPTION = {
+  url: '/1.1/account_activity/all/Dev/subscriptions.json',
+  method: 'post',
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
 }
 
@@ -40,11 +73,13 @@ export class TwitterOauth {
   static access_token_secret = process.env.ACCESS_TOKEN_SECRET;
   static access_token = process.env.ACCESS_TOKEN;
 
-  constructor(screen_name, user_id, oauth_token, oauth_token_secret) {
+  constructor({ id, screen_name, user_id, user_oauth_token, user_oauth_token_secret, oauth_token }) {
+    this.id = id;
     this.screen_name = screen_name;
     this.user_id = user_id;
     this.oauth_token = oauth_token;
-    this.oauth_token_secret = oauth_token_secret;
+    this.user_oauth_token = user_oauth_token;
+    this.user_oauth_token_secret = user_oauth_token_secret;
   }
 
   static signOauthHeaders = (request, oauthHeaders, access_token_secret = '') => {
@@ -69,7 +104,7 @@ export class TwitterOauth {
     }
   }
 
-  static makeOauthToken = async function () {
+  static makeOauthURL = async function () {
     try {
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
       const _auth_String = REQUEST_TOKEN.headers.map((key) => {
@@ -132,12 +167,37 @@ export class TwitterOauth {
 
       const { data } = response;
       const { screen_name, user_id, oauth_token, oauth_token_secret } = objectFromString(data);
-      return new TwitterOauth(screen_name, user_id, oauth_token, oauth_token_secret);
+
+      return new TwitterOauth({
+        screen_name, user_id,
+        user_oauth_token: oauth_token,
+        user_oauth_token_secret: oauth_token_secret,
+        oauth_token: identity.oauth_token
+      });
 
     } catch (e) {
       console.log('error', e)
       console.log(e.response.data || e);
     }
+  }
+
+  static generateBearerToken = async function () {
+    logger.debug('Going to create bearer token');
+
+    const basic = btoa(`${TwitterOauth.consumerKey}:${TwitterOauth.consumerSecret}`);
+    const body = 'grant_type=client_credentials';
+    const response = await axios[BEARER_TOKEN.method](`${TWITTER_API_URL}${BEARER_TOKEN.url}`, body, {
+      headers: {
+        'Authorization': `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+      }
+    });
+    return response.data;
+  };
+
+  static webhookCRCCheck = function (crc_token) {
+    const hmac = crypto.createHmac('sha256', TwitterOauth.consumerSecret).update(crc_token).digest('base64');
+    return `sha256=${hmac}`;
   }
 
   fetchAccountInfo = async function () {
@@ -147,17 +207,17 @@ export class TwitterOauth {
         return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
       })
       _auth_String.push(`oauth_nonce=${oauth_nonce}`);
-      _auth_String.push(`oauth_token=${this.oauth_token}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
       _auth_String.push(`include_email=true`);
 
-      const oauth_signature = TwitterOauth.signOauthHeaders(VERIFY_CREDENTIALS, _auth_String.sort().join('&'), this.oauth_token_secret);
+      const oauth_signature = TwitterOauth.signOauthHeaders(VERIFY_CREDENTIALS, _auth_String.sort().join('&'), this.user_oauth_token_secret);
       //console.log('Signed Oauth: ', oauth_signature);
       const auth_String = VERIFY_CREDENTIALS.headers.map((key) => {
         return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
       })
       auth_String.push(`oauth_signature="${oauth_signature}"`);
       auth_String.push(`oauth_nonce="${oauth_nonce}"`);
-      auth_String.push(`oauth_token="${this.oauth_token}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
 
       const oauth = auth_String.sort().join(',');
       const response = await axios.get(`${TWITTER_API_URL}${VERIFY_CREDENTIALS.url}?include_email=true`, {
@@ -181,78 +241,163 @@ export class TwitterOauth {
     }
   }
 
-  fetchHomeTimeline = async function (max_id) {
-    console.log(' Going to make API call for MAX_ID, ', max_id)
-    let max_id_string = '';
+  getWebhooks = async function () {
+    logger.info('Getting webhooks for the users...');
+
+    const { access_token: bearerToken } = await TwitterOauth.generateBearerToken();
+
+    const response = await axios.get(`${TWITTER_API_URL}${GET_WEBHOOKS.url}`, {
+      headers: {
+        'authorization': `Bearer ${bearerToken}`
+      }
+    });
+
+    return response.data
+  }
+
+  getSubscription = async function () {
     try {
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
-      const _auth_String = HOME_TIMELINE.headers.map((key) => {
+      const _auth_String = GET_SUBSCRIPTION.headers.map((key) => {
         return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
       })
       _auth_String.push(`oauth_nonce=${oauth_nonce}`);
-      _auth_String.push(`oauth_token=${this.oauth_token}`);
-      _auth_String.push(`count=400`);
-      _auth_String.push(`tweet_mode=extended`);
-      if (max_id && max_id != 0) {
-        max_id_string = `max_id=${max_id}`
-        _auth_String.push(max_id_string);
-      }
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
 
-      const oauth_signature = TwitterOauth.signOauthHeaders(HOME_TIMELINE, _auth_String.sort().join('&'), this.oauth_token_secret);
-      //console.log('Signed Oauth: ', oauth_signature);
-      const auth_String = HOME_TIMELINE.headers.map((key) => {
+      const oauth_signature = TwitterOauth.signOauthHeaders(GET_SUBSCRIPTION, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+
+      const auth_String = GET_SUBSCRIPTION.headers.map((key) => {
         return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
       })
       auth_String.push(`oauth_signature="${oauth_signature}"`);
       auth_String.push(`oauth_nonce="${oauth_nonce}"`);
-      auth_String.push(`oauth_token="${this.oauth_token}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
 
       const oauth = auth_String.sort().join(',');
-      const response = await axios.get(`${TWITTER_API_URL}${HOME_TIMELINE.url}?count=400&tweet_mode=extended&${max_id_string}`, {
+      console.log(`${TWITTER_API_URL}${GET_SUBSCRIPTION.url}`);
+      console.log(oauth);
+      const response = await axios.get(`${TWITTER_API_URL}${GET_SUBSCRIPTION.url}`, {
         headers: {
-          'Authorization': `OAuth ${oauth}`
+          'authorization': `OAuth ${oauth}`
         }
       });
 
       const { data } = response;
-      return data;
+      console.log(data);
     } catch (e) {
       console.log(e.response.data);
     }
   }
 
-  fetchFilteredTweets = async function ({ days = 0 }) {
-    const requiredDaysBack = new Date();
-    requiredDaysBack.setDate(requiredDaysBack.getDate() - days);
-
-    let max_id = 0;
-    let last_date = new Date();
-    const result = []
+  postSubscription = async function () {
     try {
-      do {
-        const fetched = await this.fetchHomeTimeline(max_id);
-        if(!fetched || fetched.length === 0){
-          throw new Error('Unable to fetch API');
+      const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
+      const _auth_String = POST_SUBSCRIPTION.headers.map((key) => {
+        return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
+      })
+      _auth_String.push(`oauth_nonce=${oauth_nonce}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
+
+      const oauth_signature = TwitterOauth.signOauthHeaders(POST_SUBSCRIPTION, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+
+      const auth_String = POST_SUBSCRIPTION.headers.map((key) => {
+        return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
+      })
+      auth_String.push(`oauth_signature="${oauth_signature}"`);
+      auth_String.push(`oauth_nonce="${oauth_nonce}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
+
+      const oauth = auth_String.sort().join(',');
+      console.log(`${TWITTER_API_URL}${POST_SUBSCRIPTION.url}`);
+      console.log(oauth);
+      const response = await axios.post(`${TWITTER_API_URL}${POST_SUBSCRIPTION.url}`, '', {
+        headers: {
+          'authorization': `OAuth ${oauth}`
         }
-        console.log("Fetched Tweets : ", fetched.length);
-        if(fetched.length < 2){
-          throw new Error('Fetched ! Same Id loop ! No more Tweets !')
-        }
-        const { created_at, id } = fetched[fetched.length - 1];
-        const filtered = Timeline.filterTimeLine(fetched);
-        console.log("Filtered Tweets : ", filtered.length);
-        result.push(...filtered);
-        
-        last_date = new Date(created_at);
-        console.log("Current Cursor at, ", last_date.toUTCString(), last_date.getTime())
-        console.log("Required Till, ", requiredDaysBack.toUTCString(), requiredDaysBack.getTime())
-        console.log(id)
-        max_id = id;
-      } while (last_date.getTime() > requiredDaysBack.getTime())
-    } catch (err) {
-      console.log('Error while fetching : ', err.message)
+      });
+
+      const { data } = response;
+      console.log(data);
+    } catch (e) {
+      console.log(e.response.data);
     }
-    return result;
+  }
+
+  subscribeWebhook = async function () {
+    try {
+      const hook = 'https://d7458de3b1ad.ngrok.io/api/twitter/receive';
+      const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
+      const _auth_String = REGISTER_WEBHOOK.headers.map((key) => {
+        return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
+      })
+      _auth_String.push(`oauth_nonce=${oauth_nonce}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
+      _auth_String.push(`url=${encodeURIComponent(hook)}`);
+
+      const oauth_signature = TwitterOauth.signOauthHeaders(REGISTER_WEBHOOK, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+
+      const auth_String = REGISTER_WEBHOOK.headers.map((key) => {
+        return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
+      })
+      auth_String.push(`oauth_signature="${oauth_signature}"`);
+      auth_String.push(`oauth_nonce="${oauth_nonce}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
+
+      const oauth = auth_String.sort().join(',');
+      console.log(`${TWITTER_API_URL}${REGISTER_WEBHOOK.url}?url=${encodeURIComponent(hook)}`);
+      console.log(oauth);
+      const response = await axios.post(`${TWITTER_API_URL}${REGISTER_WEBHOOK.url}?url=${encodeURIComponent(hook)}`, '', {
+        headers: {
+          'authorization': `OAuth ${oauth}`
+        }
+      });
+
+      const { data } = response;
+      console.log(data);
+    } catch (e) {
+      console.log(e.response.data);
+    }
+  }
+
+  save = async function () {
+    logger.debug('Checking User already exists : ', this.user_id);
+    if (await twitterUserExists({ user_id: this.user_id })) {
+      logger.info('Twitter user already exists..');
+      await deleteOauthToken({ oauth_token: this.oauth_token })
+      this.id = await updateOauthToken({ user_id: this.user_id }, this)
+      return;
+    }
+    logger.info('Creating new Twitter user...');
+    this.id = await updateOauthToken({ oauth_token: this.oauth_token }, this);
+  }
+
+  load = async function () {
+    logger.info('Loading twitter oauth info..');
+    const {
+      twitter_id,
+      name,
+      screen_name,
+      location,
+      description,
+      profile_image_url,
+      email,
+      user_id,
+      oauth_token,
+      user_oauth_token,
+      user_oauth_token_secret
+    } = await fetchTwitterOauthById(this.id);
+
+    this.twitter_id = twitter_id;
+    this.name = name;
+    this.screen_name = screen_name;
+    this.location = location;
+    this.description = description;
+    this.profile_image_url = profile_image_url;
+    this.email = email;
+    this.user_id = user_id;
+    this.oauth_token = oauth_token;
+    this.user_oauth_token = user_oauth_token;
+    this.user_oauth_token_secret = user_oauth_token_secret;
   }
 
 }

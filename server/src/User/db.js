@@ -4,9 +4,9 @@ export const updateOrCreate = async ( user ) => {
   delete user.id;
   const db = await makeDb();
   const query = { email : user.email };
-  const config = { upsert: true, returnNewDocument: true };
+  const config = { upsert: true, returnOriginal: false };
   const update = {
-    "$set": { linkedAccounts : user.linkedAccounts }
+    "$set": { twitter : user.twitter }
   };
   
   const data = await db.collection('users').findOneAndUpdate(query, update, config);
@@ -19,6 +19,14 @@ export const updateOrCreate = async ( user ) => {
 export const findUserById = async (id) => {
   const db = await makeDb();
   const query = { _id : makeObjectId(id) };
+  const data = await db.collection('users').findOne(query);
+  console.log(id, data);
+  return data;
+}
+
+export const findUserByCredentials = async ({username, password}) => {
+  const db = await makeDb();
+  const query = { email: username, password};
   const data = await db.collection('users').findOne(query);
   return data;
 }
