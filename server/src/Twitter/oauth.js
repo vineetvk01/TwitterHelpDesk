@@ -48,7 +48,7 @@ const REGISTER_WEBHOOK = {
 };
 
 const GET_WEBHOOKS = {
-  url: '/1.1/account_activity/all/webhooks.json',
+  url: '/1.1/account_activity/all/Dev/webhooks.json',
   method: 'get',
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
 }
@@ -251,7 +251,6 @@ export class TwitterOauth {
         'authorization': `Bearer ${bearerToken}`
       }
     });
-
     return response.data
   }
 
@@ -325,7 +324,7 @@ export class TwitterOauth {
 
   subscribeWebhook = async function () {
     try {
-      const hook = 'https://d7458de3b1ad.ngrok.io/api/twitter/receive';
+      const hook = `${SERVER_URL}/api/twitter/receive`;
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
       const _auth_String = REGISTER_WEBHOOK.headers.map((key) => {
         return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
@@ -346,11 +345,57 @@ export class TwitterOauth {
       const oauth = auth_String.sort().join(',');
       console.log(`${TWITTER_API_URL}${REGISTER_WEBHOOK.url}?url=${encodeURIComponent(hook)}`);
       console.log(oauth);
+
       const response = await axios.post(`${TWITTER_API_URL}${REGISTER_WEBHOOK.url}?url=${encodeURIComponent(hook)}`, '', {
         headers: {
           'authorization': `OAuth ${oauth}`
         }
       });
+
+      const { data } = response;
+      console.log(data);
+    } catch (e) {
+      console.log(e.response.data);
+    }
+  }
+
+  updateWebhook = async function (id) {
+
+    const UPDATE_WEBHOOK = { ...REGISTER_WEBHOOK };
+    UPDATE_WEBHOOK.url = UPDATE_WEBHOOK.url.slice(0, -5) + `/${id}.json`;
+    UPDATE_WEBHOOK.method = 'put';
+
+    try {
+      const hook = `${process.env.SERVER_URL}/api/twitter/receive`;
+      logger.info('Hook : ', hook);
+      const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
+      const _auth_String = UPDATE_WEBHOOK.headers.map((key) => {
+        return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
+      })
+      _auth_String.push(`oauth_nonce=${oauth_nonce}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
+      _auth_String.push(`url=${encodeURIComponent(hook)}`);
+
+      const oauth_signature = TwitterOauth.signOauthHeaders(UPDATE_WEBHOOK, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+
+      const auth_String = UPDATE_WEBHOOK.headers.map((key) => {
+        return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
+      })
+      auth_String.push(`oauth_signature="${oauth_signature}"`);
+      auth_String.push(`oauth_nonce="${oauth_nonce}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
+
+      const oauth = auth_String.sort().join(',');
+      console.log(`${TWITTER_API_URL}${UPDATE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`);
+      console.log(oauth);
+
+      const response = await axios.put(`${TWITTER_API_URL}${UPDATE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`, '', {
+        headers: {
+          'authorization': `OAuth ${oauth}`
+        }
+      });
+
+      logger.info('RESPONSE CODE : ', response.status);
 
       const { data } = response;
       console.log(data);

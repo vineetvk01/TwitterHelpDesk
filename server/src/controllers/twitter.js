@@ -67,25 +67,6 @@ route.get('/oauth_callback', async (req, res) => {
   }
 });
 
-route.get('/webhooks', mustBeLoggedIn, async (req, res) => {
-  try {
-    const { user: cookieUser } = req;
-    const user = new User({ id: cookieUser.id });
-    await user.load();
-
-    logger.info('Loaded the user info...', typeof user.twitter);
-
-    const twitterUserOauth = new TwitterOauth({ id: user.twitter });
-    await twitterUserOauth.load();
-    const webhooks = await twitterUserOauth.getWebhooks();
-    res.send({ webhooks })
-  } catch (e) {
-    logger.error(e.message);
-    res.status(500).send({});
-    throw new Error(e);
-  }
-})
-
 route.get('/sub', mustBeLoggedIn, async (req, res) => {
   try {
     const { user: cookieUser } = req;
@@ -138,7 +119,27 @@ route.get('/webhooks/s', mustBeLoggedIn, async (req, res) => {
   res.send({ webhooks })
 });
 
-route.get('/webhooks/d', mustBeLoggedIn, async (req, res) => {
+route.get('/webhooks', mustBeLoggedIn, async (req, res) => {
+  try {
+    const { user: cookieUser } = req;
+    const user = new User({ id: cookieUser.id });
+    await user.load();
+
+    logger.info('Loaded the user info...', typeof user.twitter);
+
+    const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+    await twitterUserOauth.load();
+    const webhooks = await twitterUserOauth.getWebhooks();
+    res.send({ webhooks })
+  } catch (e) {
+    console.log(e);
+    logger.error(e.message);
+    res.status(500).send({});
+    throw new Error(e);
+  }
+})
+
+route.get('/webhooks/update', mustBeLoggedIn, async (req, res) => {
   const { user: cookieUser } = req;
   const user = new User({ id: cookieUser.id });
   await user.load();
@@ -148,14 +149,27 @@ route.get('/webhooks/d', mustBeLoggedIn, async (req, res) => {
   const twitterUserOauth = new TwitterOauth({ id: user.twitter });
   await twitterUserOauth.load();
 
-  const webhooks = await twitterUserOauth.subscribeWebhook();
+  const webhooks = await twitterUserOauth.getWebhooks();
+
+  logger.info('Active Webhooks : ', webhooks.length);
+
+  if (webhooks.length > 0) {
+    const { id } = webhooks[0];
+    logger.info('Updating Webhook with ID : ', id);
+    await twitterUserOauth.updateWebhook(id);
+  }
+
   res.send({ webhooks })
 });
 
 route.get('/receive', async (req, res) => {
   const { crc_token, nonce } = req.query;
-  const response_token = TwitterOauth.webhookCRCCheck(crc_token);
-  res.send({response_token})
+  if (crc_token) {
+    const response_token = TwitterOauth.webhookCRCCheck(crc_token);
+    res.send({ response_token });
+    return;
+  }
+  res.send({})
 })
 
 route.post('/receive', async (req, res) => {
