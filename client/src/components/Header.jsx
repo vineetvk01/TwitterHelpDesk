@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiUsers, FiHome, FiHelpCircle } from 'react-icons/fi';
+import { connect } from 'react-redux';
 import styled from 'styled-components';
+import { logoutRequestAction } from '../redux/reducers/auth';
+import { Redirect } from 'react-router-dom';
 
 const Icons = styled.div`
   padding: 12px 15px;
@@ -53,18 +56,25 @@ const MenuItem = styled.p`
   }
 `
 
-const Menu = () => {
+const Menu = ({logoutUser}) => {
   return (
     <MenuBox>
       <MenuItem>Hi, Vineet</MenuItem>
       <MenuItem link>Home</MenuItem>
-      <MenuItem link>Log out</MenuItem>
+      <MenuItem link onClick={logoutUser}>Log out</MenuItem>
     </MenuBox>)
 };
 
-export const LeftHeader = ({ pathname }) => {
+const _LeftHeader = ({ pathname, auth, logoutUser }) => {
 
   const [menuOpen, setMenuOpen] = useState(false);
+
+  if(!auth.isLoggedIn){
+    console.log('User Not Logged In');
+    return <Redirect to={'/login'} />
+  }
+
+  const imageURL = auth.user.twitterUserOauth.profile_image_url;
 
   return (
     <div id="left" className="column">
@@ -86,9 +96,23 @@ export const LeftHeader = ({ pathname }) => {
           <Icons>
             <FiHelpCircle color='#555' size='1.2em' />
           </Icons>
-          {menuOpen ? <Menu />: ''}
-          <UserIcon src={process.env.PUBLIC_URL + '/img/user.png'} height='30' onClick={(e) => setMenuOpen(!menuOpen)} />
+          {menuOpen ? <Menu logoutUser={logoutUser} />: ''}
+          <UserIcon src={imageURL} height='30' onClick={(e) => setMenuOpen(!menuOpen)} />
         </Bottom>
       </div>
     </div>)
 }
+
+const mapStateToProps = (state) => {
+  return {
+    auth: state.auth,
+  }
+}
+
+const mapActionToProps = (dispatch) => {
+  return {
+    logoutUser: () => dispatch(logoutRequestAction()),
+  }
+}
+
+export const LeftHeader = connect(mapStateToProps, mapActionToProps)(_LeftHeader);

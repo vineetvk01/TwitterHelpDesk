@@ -1,4 +1,5 @@
 import app from './app';
+import SSE from 'sse';
 
 const normalizePort = (val) => {
   const port = parseInt(val, 10);

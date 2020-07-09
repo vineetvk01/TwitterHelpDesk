@@ -24,12 +24,14 @@
     "cuid": "^2.1.8",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "express-sse": "^0.5.3",
     "jsonwebtoken": "^8.5.1",
     "log4js": "^6.3.0",
     "mongodb": "^3.5.9",
     "path": "^0.12.7",
     "pg": "^8.2.1",
     "sanitize-html": "^1.23.0",
+    "sse": "^0.0.8",
     "validator": "^12.2.0"
   },
   "devDependencies": {

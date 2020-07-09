@@ -32,8 +32,18 @@ const Handle = styled.p`
   padding: 0;
 `;
 
-export const UserInfo = props => (<Box>
-  <UserImage src={process.env.PUBLIC_URL + '/img/user.png'} height='90' />
-  <UserName>Vineet Srivastav</UserName>
-  <Handle>@vineetvk1</Handle>
-</Box>)
+export const UserInfo = ({open}) => {
+
+  if(open == null || Object.keys(open).length === 0) {
+    return <p>Loading...</p>
+  }
+
+  const { user } = open.tweet;
+  const { name = '', profile_image_url_https = process.env.PUBLIC_URL + '/img/user.png', screen_name } = user;
+  return (
+  <Box>
+    <UserImage src={profile_image_url_https} height='90' />
+    <UserName>{name}</UserName>
+    <Handle>@{screen_name}</Handle>
+  </Box>)
+}

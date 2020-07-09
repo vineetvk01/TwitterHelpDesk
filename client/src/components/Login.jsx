@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { AiOutlineTwitter } from 'react-icons/ai';
 import { FaUserCog } from 'react-icons/fa';
-import { buildTwitterOauthURL, currentUser } from '../services';
+import { connect } from 'react-redux';
+import { fetchCurrentUser } from '../redux/reducers/auth'
+import { buildTwitterOauthURL, loginAgent } from '../services';
 
 const Background = styled.div`
   width: 100%;
@@ -77,9 +79,11 @@ const LoginButton = styled.button`
   }
 `
 
-export const Login = () => {
+const _Login = ({fetchCurrentUser}) => {
 
   const [loggedIn, setLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleAuthentication = async (e) => {
     const authenticationURL = await buildTwitterOauthURL();
@@ -87,13 +91,14 @@ export const Login = () => {
     let timer = setInterval(function () {
       if (opened.closed) {
         clearInterval(timer);
-        currentUser().then((user) => {
-          if (Object.keys(user).length > 0) {
-            setLoggedIn(true);
-          }
-        });
+        fetchCurrentUser();
       }
     }, 1000);
+  }
+
+  const handleAgentLogin = async () => {
+    await loginAgent(username, password);
+    fetchCurrentUser();
   }
 
   return (
@@ -106,12 +111,24 @@ export const Login = () => {
           <p style={{ float: 'left' }}> | Connect with Twitter</p>
         </TwitterButton>
         <br />
-        <UserCredentials placeholder="Agent Username" type="text" />
-        <UserCredentials placeholder="Agent Password" type="password" />
-        <LoginButton><FaUserCog size='18' /> Login as Agent</LoginButton>
-
+        <UserCredentials value={username} placeholder="Agent Username" type="text" onChange={(e)=>{setUsername(e.target.value)}} />
+        <UserCredentials value={password} placeholder="Agent Password" type="password" onChange={(e)=>{setPassword(e.target.value)}} />
+        <LoginButton onClick={handleAgentLogin}><FaUserCog size='18' /> Login as Agent</LoginButton>
       </LoginBox>
     </Background>
   )
-
 }
+
+const mapStateToProps = (state) => {
+  return {
+    auth: state.auth,
+  }
+}
+
+const mapDispatchToProps = (dispatch) => {
+  return {
+    fetchCurrentUser: () => dispatch(fetchCurrentUser()),
+  }
+}
+
+export const Login = connect(mapStateToProps,mapDispatchToProps)(_Login);

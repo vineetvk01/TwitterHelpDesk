@@ -8,10 +8,13 @@ const instance = axios.create({
 const OAUTH_URL = '/api/twitter/authenticationURL';
 const ME_URL = '/api/user/me';
 const ALL = '/all';
-const TIMELINE = '/api/twitter/timeline';
-const TIMELINE_SYNC = '/api/twitter/timeline/sync';
+const TIMELINE = '/api/twitter/mentions';
 const LOGOUT = '/api/user/logout';
-const ANALYSIS = '/api/twitter/timeline/analysis';
+const REPLY = '/api/twitter/mentions/reply';
+const FETCH_AGENTS = '/api/user/agents';
+const REGISTER_AGENTS = '/api/user/agent';
+const LOGIN_AGENT = '/api/user/agent/login';
+const ACTIVATE_LISTENER = 'api/twitter/sub/new';
 
 export const buildTwitterOauthURL = async () => {
   const { data: { oauth_url } } = await instance.get(`${SERVER_URL}${OAUTH_URL}`);
@@ -26,37 +29,50 @@ export const currentUser = async ({ all } = {}) => {
       url = url + ALL;
     }
     const { data } = await instance.get(url);
-    console.log(data);
     return data;
   } catch (e) {
     return {};
   }
 }
 
-export const fetchTimeline = async ({page = 1, count = 50, hashtags, location}) => {
+export const fetchMentions = async ({ page = 1, count = 50 } = {}) => {
   let url = `${SERVER_URL}${TIMELINE}?page=${page}&count=${count}`;
-  if(hashtags && hashtags.length>1){
-    url = url + `&hashtags=${encodeURIComponent(hashtags)}`;
-  }
-  if(location && location.length>1){
-    url = url + `&location=${encodeURIComponent(location)}`;
-  }
   const { data } = await instance.get(url);
-
   return data;
 }
 
-export const logout = async () => {
+export const logoutUser = async () => {
   const { data } = await instance.get(`${SERVER_URL}${LOGOUT}`, {});
+  return {};
+}
+
+export const replyToTweet = async (id, message) => {
+  const { data } = await instance.post(`${SERVER_URL}${REPLY}`, {
+    tweetId: id,
+    message
+  });
+  return data;
+};
+
+export const fetchAllAgent = async () => {
+  const { data } = await instance.get(`${SERVER_URL}${FETCH_AGENTS}`);
   return data;
 }
 
-export const analysis = async () => {
-  const { data } = await instance.get(`${SERVER_URL}${ANALYSIS}`);
+export const addNewAgent = async (username, password) => {
+  const { data } = await instance.post(`${SERVER_URL}${REGISTER_AGENTS}`, {
+    username, password
+  });
   return data;
 }
 
-export const sync = async () => {
-  const { data } = await instance.get(`${SERVER_URL}${TIMELINE_SYNC}/7`);
+export const loginAgent = async (username, password) => {
+  const { data } = await instance.post(`${SERVER_URL}${LOGIN_AGENT}`, {
+    username, password
+  });
   return data;
+}
+
+export const activateListener = async () => {
+  await instance.get(`${SERVER_URL}${ACTIVATE_LISTENER}`);
 }

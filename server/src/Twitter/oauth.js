@@ -1,7 +1,15 @@
 import axios from 'axios';
 import { Timeline } from './model';
 import { hashHMACSHA1, base64String, objectFromString } from '../utils';
-import { saveNewOauthToken, updateOauthToken, twitterUserExists, deleteOauthToken, fetchTwitterOauthById } from './db';
+import {
+  saveNewOauthToken,
+  updateOauthToken,
+  twitterUserExists,
+  deleteOauthToken,
+  fetchTwitterOauthById,
+  createTweet,
+  fetchTweets
+} from './db';
 import btoa from 'btoa';
 import makeLogger from '../logger';
 import crypto from 'crypto';
@@ -61,6 +69,12 @@ const GET_SUBSCRIPTION = {
 
 const POST_SUBSCRIPTION = {
   url: '/1.1/account_activity/all/Dev/subscriptions.json',
+  method: 'post',
+  headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
+}
+
+const REPLY_TWEET = {
+  url: '/1.1/statuses/update.json',
   method: 'post',
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
 }
@@ -200,6 +214,22 @@ export class TwitterOauth {
     return `sha256=${hmac}`;
   }
 
+  static AddEvent = async function (event) {
+    const { for_user_id, tweet_create_events = [] } = event;
+    tweet_create_events.forEach(async (event) => {    
+      if (event.entities.user_mentions.length > 0 ) {
+        console.log(event.entities.user_mentions);
+        console.log(event);
+        await createTweet(for_user_id, event);
+      }
+
+    })
+  }
+
+  fetchMentions = function () {
+    return fetchTweets(this.user_id);
+  }
+
   fetchAccountInfo = async function () {
     try {
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
@@ -236,6 +266,46 @@ export class TwitterOauth {
       this.profile_image_url = profile_image_url;
       this.email = email;
 
+    } catch (e) {
+      console.log(e.response.data);
+    }
+  }
+
+  sendReply = async function (tweetId, message) {
+    try {
+      const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
+      const _auth_String = REPLY_TWEET.headers.map((key) => {
+        return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
+      })
+      _auth_String.push(`oauth_nonce=${oauth_nonce}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
+      _auth_String.push(`in_reply_to_status_id_str=${tweetId}`);
+      _auth_String.push(`status=${encodeURIComponent(message)}`);
+      _auth_String.push(`auto_populate_reply_metadata=true`);
+
+      const oauth_signature = TwitterOauth.signOauthHeaders(REPLY_TWEET, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+      //console.log('Signed Oauth: ', oauth_signature);
+      const auth_String = REPLY_TWEET.headers.map((key) => {
+        return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
+      })
+      auth_String.push(`oauth_signature="${oauth_signature}"`);
+      auth_String.push(`oauth_nonce="${oauth_nonce}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
+
+      const oauth = auth_String.sort().join(',');
+      console.log('This', oauth)
+      console.log('This', `${TWITTER_API_URL}${REPLY_TWEET.url}?auto_populate_reply_metadata=true&in_reply_to_status_id=${tweetId}&status=${encodeURIComponent(message)}`)
+      const response = await axios.post(`${TWITTER_API_URL}${REPLY_TWEET.url}?in_reply_to_status_id_str=${tweetId}&auto_populate_reply_metadata=true&status=${encodeURIComponent(message)}`, '', {
+        headers: {
+          'authorization': `OAuth ${oauth}`
+        }
+      });
+
+
+
+      const { data } = response;
+
+      console.log('Reply', data);
     } catch (e) {
       console.log(e.response.data);
     }
@@ -324,7 +394,7 @@ export class TwitterOauth {
 
   subscribeWebhook = async function () {
     try {
-      const hook = `${SERVER_URL}/api/twitter/receive`;
+      const hook = `${process.env.SERVER_URL}/api/twitter/receive`;
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
       const _auth_String = REGISTER_WEBHOOK.headers.map((key) => {
         return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
@@ -359,26 +429,26 @@ export class TwitterOauth {
     }
   }
 
-  updateWebhook = async function (id) {
+  deleteWebhook = async function (id) {
 
-    const UPDATE_WEBHOOK = { ...REGISTER_WEBHOOK };
-    UPDATE_WEBHOOK.url = UPDATE_WEBHOOK.url.slice(0, -5) + `/${id}.json`;
-    UPDATE_WEBHOOK.method = 'put';
+    const DELETE_WEBHOOK = { ...REGISTER_WEBHOOK };
+    DELETE_WEBHOOK.url = DELETE_WEBHOOK.url.slice(0, -5) + `/${id}.json`;
+    DELETE_WEBHOOK.method = 'delete';
 
     try {
       const hook = `${process.env.SERVER_URL}/api/twitter/receive`;
       logger.info('Hook : ', hook);
       const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
-      const _auth_String = UPDATE_WEBHOOK.headers.map((key) => {
+      const _auth_String = DELETE_WEBHOOK.headers.map((key) => {
         return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
       })
       _auth_String.push(`oauth_nonce=${oauth_nonce}`);
       _auth_String.push(`oauth_token=${this.user_oauth_token}`);
       _auth_String.push(`url=${encodeURIComponent(hook)}`);
 
-      const oauth_signature = TwitterOauth.signOauthHeaders(UPDATE_WEBHOOK, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+      const oauth_signature = TwitterOauth.signOauthHeaders(DELETE_WEBHOOK, _auth_String.sort().join('&'), this.user_oauth_token_secret);
 
-      const auth_String = UPDATE_WEBHOOK.headers.map((key) => {
+      const auth_String = DELETE_WEBHOOK.headers.map((key) => {
         return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
       })
       auth_String.push(`oauth_signature="${oauth_signature}"`);
@@ -386,10 +456,10 @@ export class TwitterOauth {
       auth_String.push(`oauth_token="${this.user_oauth_token}"`);
 
       const oauth = auth_String.sort().join(',');
-      console.log(`${TWITTER_API_URL}${UPDATE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`);
+      console.log(`${TWITTER_API_URL}${DELETE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`);
       console.log(oauth);
 
-      const response = await axios.put(`${TWITTER_API_URL}${UPDATE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`, '', {
+      const response = await axios.delete(`${TWITTER_API_URL}${DELETE_WEBHOOK.url}?url=${encodeURIComponent(hook)}`, {
         headers: {
           'authorization': `OAuth ${oauth}`
         }

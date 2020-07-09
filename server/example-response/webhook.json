@@ -1,0 +1,78 @@
+{{
+  for_user_id: '98348061',
+  direct_message_events: [
+    {
+      type: 'message_create',
+      id: '1281227197533978629',
+      created_timestamp: '1594303342599',
+      message_create: [Object]
+    }
+  ],
+  users: {
+    '98348061': {
+      id: '98348061',
+      created_timestamp: '1261392514000',
+      name: 'Vineet Srivastav',
+      screen_name: 'vineetvk01',
+      location: 'New Delhi, India',
+      description: 'Software Engineer || Ex @zoho @cognizant @travelers',
+      url: 'https://t.co/5XB6hP5Uo9',
+      protected: false,
+      verified: false,
+      followers_count: 60,
+      friends_count: 44,
+      statuses_count: 39,
+      profile_image_url: 'http://pbs.twimg.com/profile_images/1266252376106627073/-ZFAlUJj_normal.jpg',
+      profile_image_url_https: 'https://pbs.twimg.com/profile_images/1266252376106627073/-ZFAlUJj_normal.jpg'
+    },
+    '1281018025114648577': {
+      id: '1281018025114648577',
+      created_timestamp: '1594253485149',
+      name: 'Test Vineet',
+      screen_name: 'vineet_test',
+      protected: false,
+      verified: false,
+      followers_count: 1,
+      friends_count: 1,
+      statuses_count: 2,
+      profile_image_url: 'http://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png',
+      profile_image_url_https: 'https://abs.twimg.com/sticky/default_profile_images/default_profile_normal.png'
+    }
+  }
+},
+{
+  for_user_id: '98348061',
+  user_has_blocked: false,
+  tweet_create_events: [
+    {
+      created_at: 'Thu Jul 09 14:03:38 +0000 2020',
+      id: 1281227517920043000,
+      id_str: '1281227517920043012',
+      text: '@vineetvk01',
+      source: '<a href="https://mobile.twitter.com" rel="nofollow">Twitter Web App</a>',
+      truncated: false,
+      in_reply_to_status_id: null,
+      in_reply_to_status_id_str: null,
+      in_reply_to_user_id: 98348061,
+      in_reply_to_user_id_str: '98348061',
+      in_reply_to_screen_name: 'vineetvk01',
+      user: [Object],
+      geo: null,
+      coordinates: null,
+      place: null,
+      contributors: null,
+      is_quote_status: false,
+      quote_count: 0,
+      reply_count: 0,
+      retweet_count: 0,
+      favorite_count: 0,
+      entities: [Object],
+      favorited: false,
+      retweeted: false,
+      filter_level: 'low',
+      lang: 'und',
+      timestamp_ms: '1594303418985'
+    }
+  ]
+}
+}

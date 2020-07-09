@@ -4,7 +4,7 @@ import path from 'path';
 import { attachTokenToResponse, mustBeLoggedIn } from '../middleware/authentication';
 import { User } from '../User/model';
 import { TwitterOauth } from '../Twitter/oauth';
-import { Timeline } from '../Twitter/model';
+import { sse } from '../app';
 import makeLogger from '../logger';
 
 const PUBLIC_URL = path.join(__dirname, '../../public');
@@ -105,7 +105,7 @@ route.get('/sub/new', mustBeLoggedIn, async (req, res) => {
   }
 })
 
-route.get('/webhooks/s', mustBeLoggedIn, async (req, res) => {
+route.get('/webhooks/add', mustBeLoggedIn, async (req, res) => {
   const { user: cookieUser } = req;
   const user = new User({ id: cookieUser.id });
   await user.load();
@@ -139,7 +139,7 @@ route.get('/webhooks', mustBeLoggedIn, async (req, res) => {
   }
 })
 
-route.get('/webhooks/update', mustBeLoggedIn, async (req, res) => {
+route.get('/webhooks/delete', mustBeLoggedIn, async (req, res) => {
   const { user: cookieUser } = req;
   const user = new User({ id: cookieUser.id });
   await user.load();
@@ -150,17 +150,54 @@ route.get('/webhooks/update', mustBeLoggedIn, async (req, res) => {
   await twitterUserOauth.load();
 
   const webhooks = await twitterUserOauth.getWebhooks();
-
+  //const webhooks = ['sds'];
   logger.info('Active Webhooks : ', webhooks.length);
 
   if (webhooks.length > 0) {
     const { id } = webhooks[0];
-    logger.info('Updating Webhook with ID : ', id);
-    await twitterUserOauth.updateWebhook(id);
+    //const id = '1281225322969497602';
+    logger.info('Deleting Webhook with ID : ', id);
+    await twitterUserOauth.deleteWebhook(id);
   }
-
   res.send({ webhooks })
 });
+
+/* ALL TWEETS */
+
+route.get('/mentions', mustBeLoggedIn, async (req, res) => {
+  const { user: cookieUser } = req;
+  const user = new User({ id: cookieUser.id });
+  await user.load();
+
+  logger.info('Loaded the user info...', typeof user.twitter);
+
+  const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+  await twitterUserOauth.load();
+
+  const mentions = await twitterUserOauth.fetchMentions();
+
+  res.send({ mentions });
+});
+
+route.post('/mentions/reply', mustBeLoggedIn, async (req, res) => {
+  
+  const { user: cookieUser } = req;
+  const { tweetId, message } = req.body;
+  const user = new User({ id: cookieUser.id });
+  await user.load();
+
+  logger.info('Loaded the user info...', typeof user.twitter);
+
+  const twitterUserOauth = new TwitterOauth({ id: user.twitter });
+  await twitterUserOauth.load();
+
+  twitterUserOauth.sendReply(tweetId, message);
+
+  res.send({})
+
+});
+
+/* WEBHOOKS */
 
 route.get('/receive', async (req, res) => {
   const { crc_token, nonce } = req.query;
@@ -170,13 +207,16 @@ route.get('/receive', async (req, res) => {
     return;
   }
   res.send({})
-})
+});
 
 route.post('/receive', async (req, res) => {
-  logger.info('Receiving')
-  logger.info(req.body);
+  logger.info('Receiving Webhook Event...')
+  const event = req.body;
+  TwitterOauth.AddEvent(event);
+  const { for_user_id } = event;
+  sse.send(parseInt(for_user_id))
   res.send({})
-})
+});
 
 
 export default route;

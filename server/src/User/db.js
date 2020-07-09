@@ -6,7 +6,7 @@ export const updateOrCreate = async ( user ) => {
   const query = { email : user.email };
   const config = { upsert: true, returnOriginal: false };
   const update = {
-    "$set": { twitter : user.twitter }
+    "$set": { twitter : user.twitter, password: user.password }
   };
   
   const data = await db.collection('users').findOneAndUpdate(query, update, config);
@@ -29,6 +29,13 @@ export const findUserByCredentials = async ({username, password}) => {
   const query = { email: username, password};
   const data = await db.collection('users').findOne(query);
   return data;
+}
+
+export const fetchUserByTwitterId = async(twitter, adminEmail) =>{
+  const db = await makeDb();
+  const query = { twitter };
+  const data = await db.collection('users').find(query);
+  return data.toArray();
 }
 
 

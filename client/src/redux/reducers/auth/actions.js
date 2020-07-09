@@ -10,6 +10,10 @@ export const CLEAR_ERROR = 'CLEAR_ERROR';
 export const SIGNUP_REQUEST = 'SIGNUP_REQUEST';
 export const SIGNUP_ERROR = 'SIGNUP_ERROR';
 
+export const fetchCurrentUser = () => ({
+  type: FETCH_USER
+})
+
 export const authRequestAction = (user = { username: '', password: '' }) => ({
   type: AUTH_REQUEST,
   payload: user,

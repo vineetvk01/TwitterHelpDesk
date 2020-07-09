@@ -3,11 +3,13 @@ import { Box, UserIcon, UserName, Text } from '../styled-components';
 
 export const Tweet = props => {
 
+  const tweet = props.tweet;
+
   return (
-    <Box { ...props } >
-      <UserIcon src={process.env.PUBLIC_URL + '/img/user.png'} height='30' />
-      <UserName>Vineet</UserName>
-      <Text { ...props }>sdhdfhdsufhdsuhsfhsfhfhsfh dshfsdjfhsdjfhsdfjsdf sdfhdsjfhsdjf</Text>
+    <Box {...props} >
+      <UserIcon src={tweet.user.profile_image_url_https} height='30' />
+      <UserName>{tweet.user.name}</UserName>
+      <Text {...props}>{tweet.text}</Text>
     </Box>
   )
 }

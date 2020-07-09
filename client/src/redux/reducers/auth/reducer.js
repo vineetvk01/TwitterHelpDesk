@@ -8,12 +8,10 @@ const initialState = {
 }
 
 const authReducer = ( state = initialState, action) => {
+  console.log('Type', action.type, 'Payload : ', action.payload);
   switch(action.type){
     case SET_USER: return action.payload; 
-    case AUTH_FAILED: return {...initialState, error: action.payload};
     case LOGOUT_USER: return initialState; 
-    case CLEAR_ERROR: delete state.error; delete state.signupError; return {...state};
-    case SIGNUP_ERROR: return {...initialState, signupError: action.payload};
     default: return state; 
   }
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import bodyParser from 'body-parser';
+import SSE from 'express-sse';
 import authentication, { attachTokenToResponse, removeTokenToResponse, mustBeLoggedIn } from './middleware/authentication';
 
 const app = express();
@@ -28,11 +29,13 @@ app.use((req, res, next) => {
   next();
 });
 
+export const sse = new SSE(["Connected"]);
+
 app.use(authentication);
 
 app.use('/api/user', userRoutes);
 app.use('/api/twitter', twitterRoutes );
-
+app.get('/stream', sse.init);
 
 app.use(function (req, res, next) {
   res.status(404);
