@@ -60,7 +60,6 @@ const Menu = ({logoutUser}) => {
   return (
     <MenuBox>
       <MenuItem>Hi, Vineet</MenuItem>
-      <MenuItem link>Home</MenuItem>
       <MenuItem link onClick={logoutUser}>Log out</MenuItem>
     </MenuBox>)
 };

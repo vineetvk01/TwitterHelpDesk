@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { connect } from 'react-redux';
+import { Redirect } from 'react-router-dom';
 import { AddAgents, ViewAgents } from './agents';
 import { Container, Content, Title } from './styled-components';
 
@@ -18,6 +19,11 @@ const AccessLayout = ({ isAdmin }) => (
 )
 
 const _AccessBox = ({ auth }) => {
+  
+  if(!auth.isLoggedIn){
+    console.log('User Not Logged In');
+    return <Redirect to={'/login'} />
+  }
 
   const isAdmin = auth.user.user.email === auth.user.twitterUserOauth.email;
 
