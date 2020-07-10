@@ -38,7 +38,7 @@ export const Tweets = ({ twitter_id, image, search }) => {
 
   const [mentions, setMentions] = useState([]);
   const [result, setResult] = useState([]);
-  const [open, setOpen] = useState({});
+  let [open, setOpen] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
   const loadMentions = function (cb) {
@@ -78,7 +78,7 @@ export const Tweets = ({ twitter_id, image, search }) => {
           {isLoading ? <div style={{ margin: '0 auto', color: 'blue' }}>...Incoming...</div> : ''}
           {result.length === 0 ?
             mentions.map((mention) => {
-              if (!open) return '';
+              if (!open) open = mention;
               return <Tweet active={open._id === mention._id} key={mention._id} tweet={mention.tweet} onClick={(e) => { setOpen(mention) }} />
             }) :
             result.map((mention) => {

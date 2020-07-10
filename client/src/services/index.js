@@ -14,7 +14,7 @@ const REPLY = '/api/twitter/mentions/reply';
 const FETCH_AGENTS = '/api/user/agents';
 const REGISTER_AGENTS = '/api/user/agent';
 const LOGIN_AGENT = '/api/user/agent/login';
-const ACTIVATE_LISTENER = 'api/twitter/sub/new';
+const ACTIVATE_LISTENER = '/api/twitter/sub/new';
 
 export const buildTwitterOauthURL = async () => {
   const { data: { oauth_url } } = await instance.get(`${SERVER_URL}${OAUTH_URL}`);

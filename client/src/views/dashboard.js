@@ -8,17 +8,11 @@ import { activateListener } from '../services'
 
 const _DashBoard = ({auth}) => {
 
-  useEffect(()=>{
-    activateListener();
-  })
-
   if(!auth.isLoggedIn){
     console.log('User Not Logged In');
     return <Redirect to={'/login'} />
   }
-
-
-
+  
   return (
     <TweetsBox />  
   )

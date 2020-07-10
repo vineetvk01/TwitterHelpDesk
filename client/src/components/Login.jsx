@@ -4,7 +4,7 @@ import { AiOutlineTwitter } from 'react-icons/ai';
 import { FaUserCog } from 'react-icons/fa';
 import { connect } from 'react-redux';
 import { fetchCurrentUser } from '../redux/reducers/auth'
-import { buildTwitterOauthURL, loginAgent } from '../services';
+import { buildTwitterOauthURL, loginAgent, activateListener } from '../services';
 
 const Background = styled.div`
   width: 100%;
@@ -91,6 +91,7 @@ const _Login = ({fetchCurrentUser}) => {
     let timer = setInterval(function () {
       if (opened.closed) {
         clearInterval(timer);
+        activateListener();
         fetchCurrentUser();
       }
     }, 1000);
