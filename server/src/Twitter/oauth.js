@@ -43,8 +43,8 @@ const BEARER_TOKEN = {
   method: 'post',
 }
 
-const HOME_TIMELINE = {
-  url: '/1.1/statuses/home_timeline.json',
+const MENTIONS_TIMELINE = {
+  url: '/1.1/statuses/mentions_timeline.json',
   method: 'get',
   headers: ['oauth_signature_method', 'oauth_timestamp', 'oauth_consumer_key', 'oauth_version']
 }
@@ -216,17 +216,61 @@ export class TwitterOauth {
 
   static AddEvent = async function (event) {
     const { for_user_id, tweet_create_events = [] } = event;
+    const mentioned = new Set();
     tweet_create_events.forEach(async (event) => {    
       if (event.entities.user_mentions.length > 0 ) {
-        console.log(event.entities.user_mentions);
-        console.log(event);
+        event.entities.user_mentions.forEach((mention) => mentioned.add(mention.screen_name));
         await createTweet(for_user_id, event);
       }
-
     })
+    return Array.from(mentioned);
   }
 
-  fetchMentions = function () {
+  fetchPreviousMentions = async function (){
+    try {
+      const oauth_nonce = encodeURIComponent(TwitterOauth.generate('oauth_nonce'));
+      const _auth_String = MENTIONS_TIMELINE.headers.map((key) => {
+        return `${key}=${encodeURIComponent(TwitterOauth.generate(key))}`
+      })
+      _auth_String.push(`oauth_nonce=${oauth_nonce}`);
+      _auth_String.push(`oauth_token=${this.user_oauth_token}`);
+      _auth_String.push(`count=10`);
+
+      const oauth_signature = TwitterOauth.signOauthHeaders(MENTIONS_TIMELINE, _auth_String.sort().join('&'), this.user_oauth_token_secret);
+      //console.log('Signed Oauth: ', oauth_signature);
+      const auth_String = MENTIONS_TIMELINE.headers.map((key) => {
+        return `${key}="${encodeURIComponent(TwitterOauth.generate(key))}"`
+      })
+      auth_String.push(`oauth_signature="${oauth_signature}"`);
+      auth_String.push(`oauth_nonce="${oauth_nonce}"`);
+      auth_String.push(`oauth_token="${this.user_oauth_token}"`);
+
+      const oauth = auth_String.sort().join(',');
+      const response = await axios.get(`${TWITTER_API_URL}${MENTIONS_TIMELINE.url}?count=10`, {
+        headers: {
+          'Authorization': `OAuth ${oauth}`
+        }
+      });
+
+      const { data } = response;
+      const persistTweets = data.map((item) => {
+        return createTweet(this.user_id , item);
+      });
+
+      return Promise.all(persistTweets);
+
+    }catch(e){
+      return [];
+    }
+  }
+
+  fetchMentions = async function () {
+    const mentions =  await fetchTweets(this.user_id);
+    if(mentions.length !== 0){
+      return mentions;
+    }
+    logger.info('New user, fetching previous mentions before returning')
+    await this.fetchPreviousMentions();
     return fetchTweets(this.user_id);
   }
 

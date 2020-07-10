@@ -34,7 +34,7 @@ const Image = styled.img`
   margin: auto;
 `
 
-export const Tweets = ({ twitter_id, image, search }) => {
+export const Tweets = ({ screen_name, image, search }) => {
 
   const [mentions, setMentions] = useState([]);
   const [result, setResult] = useState([]);
@@ -52,7 +52,8 @@ export const Tweets = ({ twitter_id, image, search }) => {
   useEffect(() => {
     var es = new EventSource(`${SERVER_URL}/stream`);
     es.onmessage = function (event) {
-      if (twitter_id === event.data) {
+      console.log('New Event coming...', event.data, screen_name)
+      if (`"${screen_name}"` === event.data || screen_name === event.data) {
         setIsLoading(true);
         setTimeout(loadMentions, 2000);
       }
@@ -109,7 +110,7 @@ const _TweetsBox = ({ auth }) => {
 
   const handle = auth.user.twitterUserOauth.screen_name;
   const image = auth.user.twitterUserOauth.profile_image_url;
-  const twitter_id = auth.user.twitterUserOauth.user_id;
+  const screen_name = auth.user.twitterUserOauth.screen_name;
 
   return (
     <div id="right" className="column" style={{ width: '100%' }}>
@@ -120,7 +121,7 @@ const _TweetsBox = ({ auth }) => {
             <Search placeholder="Quick search" value={search} onChange={(e) => setSearch(e.target.value)} />
             <Title style={{ float: 'right', fontSize: 14 }}>Twitter Handle: @{handle}</Title>
           </div>
-          <Tweets twitter_id={twitter_id} image={image} search={search} />
+          <Tweets screen_name={screen_name} image={image} search={search} />
         </Container>
       </div>
     </div>

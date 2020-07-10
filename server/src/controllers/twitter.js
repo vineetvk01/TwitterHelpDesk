@@ -175,7 +175,6 @@ route.get('/mentions', mustBeLoggedIn, async (req, res) => {
   await twitterUserOauth.load();
 
   const mentions = await twitterUserOauth.fetchMentions();
-
   res.send({ mentions });
 });
 
@@ -212,9 +211,12 @@ route.get('/receive', async (req, res) => {
 route.post('/receive', async (req, res) => {
   logger.info('Receiving Webhook Event...')
   const event = req.body;
-  TwitterOauth.AddEvent(event);
-  const { for_user_id } = event;
-  sse.send(parseInt(for_user_id))
+  const mentioned = await TwitterOauth.AddEvent(event);
+  console.log(mentioned);
+  mentioned.forEach((mention_username) => {
+    console.log(mention_username);
+    sse.send(mention_username);
+  })
   res.send({})
 });
 

@@ -4,7 +4,6 @@ import { TweetsBox } from '../components/Dashboard';
 import { connect } from 'react-redux';
 import { authRequestAction } from '../redux/reducers/auth';
 import { Redirect } from 'react-router-dom';
-import { activateListener } from '../services'
 
 const _DashBoard = ({auth}) => {
 
