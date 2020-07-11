@@ -76,7 +76,7 @@ export const Details = ({ open = { tweet: {} }, userImage }) => {
       <Text>{text}</Text>
       <Reply>
         <UserIcon src={userImage} height='50' />
-        <ReplyInput value={reply} onChange={(e)=>{setReply(e.currentTarget.value)}} />
+        <ReplyInput value={reply} onChange={(e)=>{setReply(e.currentTarget.value)}} placeholder={`Please mention @${screen_name} to reply the user`} />
         <Button onClick={handleSend}><FiSend /> Send</Button>
       </Reply>
     </Header>
