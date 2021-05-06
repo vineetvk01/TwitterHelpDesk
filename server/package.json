@@ -30,7 +30,7 @@
     "mongodb": "^3.5.9",
     "path": "^0.12.7",
     "pg": "^8.2.1",
-    "sanitize-html": "^1.23.0",
+    "sanitize-html": "^2.3.2",
     "sse": "^0.0.8",
     "validator": "^12.2.0"
   },
